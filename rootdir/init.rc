@@ -334,7 +334,7 @@ on boot
 
     # set RLIMIT_NICE to allow priorities from 19 to -20
     setrlimit 13 40 40
-    su 0 setenforce 0
+    #su 0 setenforce 0
     # Memory management.  Basic kernel parameters, and allow the high
     # level system server to be able to adjust the kernel OOM driver
     # parameters to match how it is managing things.
