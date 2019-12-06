@@ -164,6 +164,25 @@ static void publish_socket(const char *name, int fd)
     fcntl(fd, F_SETFD, 0);
 }
 
+void expand_props_in_args(int argc, char **argv)
+{
+    char prop_val[PROP_VALUE_MAX];
+    int ret;
+    int i;
+
+    for (i = 1; i < argc; i++) {
+        if (strchr(argv[i], '$')) {
+            ret = expand_props(prop_val, argv[i], sizeof(prop_val));
+            if (ret) {
+                ERROR("cannot expand '%s' while starting service '%s'\n", argv[i], argv[0]);
+            } else {
+                argv[i] = malloc(strlen(prop_val) + 1);
+                strlcpy(argv[i], prop_val, sizeof(prop_val));
+            }
+        }
+    }
+}
+
 void service_start(struct service *svc, const char *dynamic_args)
 {
     struct stat s;
@@ -332,6 +351,7 @@ void service_start(struct service *svc, const char *dynamic_args)
         }
 
         if (!dynamic_args) {
+            expand_props_in_args(svc->nargs, svc->args);
             if (execve(svc->args[0], (char**) svc->args, (char**) ENV) < 0) {
                 ERROR("cannot execve('%s'): %s\n", svc->args[0], strerror(errno));
             }
@@ -351,6 +371,7 @@ void service_start(struct service *svc, const char *dynamic_args)
                     break;
             }
             arg_ptrs[arg_idx] = '\0';
+            expand_props_in_args(arg_idx, arg_ptrs);
             execve(svc->args[0], (char**) arg_ptrs, (char**) ENV);
         }
         _exit(127);
