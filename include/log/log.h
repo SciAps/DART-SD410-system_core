@@ -70,6 +70,19 @@ extern "C" {
 // ---------------------------------------------------------------------
 
 /*
+ *      -DLINT_RLOG in sources that you want to enforce that all logging
+ * goes to the radio log buffer. If any logging goes to any of the other
+ * log buffers, there will be a compile or link error to highlight the
+ * problem. This is not a replacement for a full audit of the code since
+ * this only catches compiled code, not ifdef'd debug code. Options to
+ * defining this, either temporarily to do a spot check, or permanently
+ * to enforce, in all the communications trees; We have hopes to ensure
+ * that by supplying just the radio log buffer that the communications
+ * teams will have their one-stop shop for triaging issues.
+ */
+#ifndef LINT_RLOG
+
+/*
  * Simplified macro to send a verbose log message using the current LOG_TAG.
  */
 #ifndef ALOGV
@@ -280,6 +293,8 @@ extern "C" {
     : (void)0 )
 #endif
 
+#endif /* !LINT_RLOG */
+
 // ---------------------------------------------------------------------
 
 /*
@@ -471,6 +486,7 @@ typedef enum {
     EVENT_TYPE_LONG     = 1,
     EVENT_TYPE_STRING   = 2,
     EVENT_TYPE_LIST     = 3,
+    EVENT_TYPE_FLOAT    = 4,
 } AndroidEventLogType;
 #define sizeof_AndroidEventLogType sizeof(typeof_AndroidEventLogType)
 #define typeof_AndroidEventLogType unsigned char
@@ -487,6 +503,13 @@ typedef enum {
         long long longBuf = _value;                                         \
         (void) android_btWriteLog(_tag, EVENT_TYPE_LONG, &longBuf,          \
             sizeof(longBuf));                                               \
+    }
+#endif
+#ifndef LOG_EVENT_FLOAT
+#define LOG_EVENT_FLOAT(_tag, _value) {                                     \
+        float floatBuf = _value;                                            \
+        (void) android_btWriteLog(_tag, EVENT_TYPE_FLOAT, &floatBuf,        \
+            sizeof(floatBuf));                                              \
     }
 #endif
 #ifndef LOG_EVENT_STRING
@@ -534,8 +557,23 @@ typedef enum {
 #define android_btWriteLog(tag, type, payload, len) \
     __android_log_btwrite(tag, type, payload, len)
 
+/*
+ *    IF_ALOG uses android_testLog, but IF_ALOG can be overridden.
+ *    android_testLog will remain constant in its purpose as a wrapper
+ *        for Android logging filter policy, and can be subject to
+ *        change. It can be reused by the developers that override
+ *        IF_ALOG as a convenient means to reimplement their policy
+ *        over Android.
+ */
+#if LOG_NDEBUG /* Production */
+#define android_testLog(prio, tag) \
+    (__android_log_is_loggable(prio, tag, ANDROID_LOG_DEBUG) != 0)
+#else
+#define android_testLog(prio, tag) \
+    (__android_log_is_loggable(prio, tag, ANDROID_LOG_VERBOSE) != 0)
+#endif
+
 // TODO: remove these prototypes and their users
-#define android_testLog(prio, tag) (1)
 #define android_writevLog(vec,num) do{}while(0)
 #define android_write1Log(str,len) do{}while (0)
 #define android_setMinPriority(tag, prio) do{}while(0)
@@ -546,16 +584,27 @@ typedef enum {
 typedef enum log_id {
     LOG_ID_MIN = 0,
 
+#ifndef LINT_RLOG
     LOG_ID_MAIN = 0,
+#endif
     LOG_ID_RADIO = 1,
+#ifndef LINT_RLOG
     LOG_ID_EVENTS = 2,
     LOG_ID_SYSTEM = 3,
     LOG_ID_CRASH = 4,
+    LOG_ID_KERNEL = 5,
+#endif
 
     LOG_ID_MAX
 } log_id_t;
 #define sizeof_log_id_t sizeof(typeof_log_id_t)
 #define typeof_log_id_t unsigned char
+
+/*
+ * Use the per-tag properties "log.tag.<tagname>" to generate a runtime
+ * result of non-zero to expose a log.
+ */
+int __android_log_is_loggable(int prio, const char *tag, int def);
 
 /*
  * Send a simple string to the log.
