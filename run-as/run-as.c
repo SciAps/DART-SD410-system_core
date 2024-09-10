@@ -122,17 +122,19 @@ int main(int argc, char **argv)
     }
 
     /* retrieve package information from system */
+    errno = 0;
     pkgname = argv[1];
     if (get_package_info(pkgname, &info) < 0) {
-        panic("Package '%s' is unknown\n", pkgname);
+        panic("Package '%s' is unknown, %s\n", pkgname, strerror(errno));
         return 1;
     }
 
-    /* reject system packages */
+    /* reject system packages
     if (info.uid < AID_APP) {
         panic("Package '%s' is not an application\n", pkgname);
         return 1;
     }
+    */
 
     /* reject any non-debuggable package */
     if (!info.isDebuggable) {
